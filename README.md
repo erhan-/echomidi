@@ -4,13 +4,23 @@ A gesture-controlled MIDI controller using ultrasonic distance sensing. Control 
 
 ## 🎛️ Overview
 
-EchoMIDI transforms a Digispark ATtiny85 board and an HC-SR04 ultrasonic sensor into a USB MIDI controller. By measuring the distance of your hand (or any object) from the sensor, it sends MIDI Control Change (CC) messages that can be mapped to any parameter in your music production software.
+EchoMIDI transforms a Digispark ATtiny85 board and an HC-SR04 ultrasonic sensor into a USB MIDI controller. By measuring the distance of your hand (or any object) from the sensor, it sends MIDI messages that can be mapped to any parameter or used to trigger notes in your music production software.
+
+### Two Versions
+
+This project comes in two variants:
+
+| Version | File | Description |
+|---------|------|-------------|
+| **Parameter Control** | `echomidi-parameter.cpp` | Sends MIDI Control Change (CC) messages for continuous parameter control |
+| **Notes** | `echomidi-notes.cpp` | Sends MIDI Note On/Off messages for playing notes based on distance |
 
 Perfect for:
 - Live performance control
 - Hands-free parameter automation
 - Creative sound design
 - Accessible music production interfaces
+- Gesture-based musical instruments
 
 ## 🔧 Hardware Requirements
 
@@ -60,17 +70,26 @@ The onboard LED on **P1** provides visual feedback when an object is detected in
 
 4. **Important**: When prompted, **plug in your Digispark board**. The bootloader has a 5-second window for uploading.
 
+### Selecting a Version
+
+The repository contains two versions of the firmware:
+
+- **echomidi-parameter.cpp** - For continuous parameter control (CC messages)
+- **echomidi-notes.cpp** - For playing MIDI notes based on distance
+
+To use a specific version, copy the desired file to `src/main.cpp` before uploading, or modify your `platformio.ini` to use the correct source file.
+
 ## 🎹 Usage
 
 ### Basic Operation
 
 1. Connect the EchoMIDI device to your computer via USB
 2. The device will appear as a USB MIDI controller
-3. Move your hand between **2-30 cm** from the sensor
-4. The onboard LED lights up when an object is detected in range
-5. Distance is mapped to MIDI CC values (closer = higher value, 127 to 0)
+3. The onboard LED lights up when an object is detected in range
 
-### DAW Configuration
+### Parameter Control Version (echomidi-parameter.cpp)
+
+Move your hand between **2-30 cm** from the sensor. Distance is mapped to MIDI CC values (closer = higher value, 127 to 0).
 
 #### Ableton Live
 
@@ -85,9 +104,32 @@ The onboard LED on **P1** provides visual feedback when an object is detected in
 
 The device sends standard MIDI CC messages on **Channel 1**, **CC Number 24** by default. Consult your DAW's documentation for MIDI mapping instructions.
 
+### Notes Version (echomidi-notes.cpp)
+
+Move your hand between **2-50 cm** from the sensor. Distance is mapped to MIDI notes over one octave (C2 to B2 by default).
+
+- **Closer to sensor** = Lower notes
+- **Further from sensor** = Higher notes
+- **No object detected** = All notes turn off
+
+The notes version uses hysteresis to prevent rapid note changes - the distance must be stable for a few readings before a note is triggered.
+
+#### Using with Virtual Instruments
+
+1. Load a virtual instrument (VST, AU, or Ableton Instrument)
+2. Ensure the instrument is receiving MIDI from the Digispark device
+3. Move your hand to play notes
+4. The LED indicates when a note is being played
+
+#### MIDI Keyboard Workstations
+
+The device can be used with any MIDI-compatible software synthesizer or hardware keyboard workstation that accepts MIDI input.
+
 ## ⚙️ Customization
 
-### Changing the CC Number
+### Parameter Control Version (echomidi-parameter.cpp)
+
+#### Changing the CC Number
 
 Edit [`src/main.cpp`](src/main.cpp:18) and modify the `CC_NUMBER` constant:
 
@@ -102,7 +144,7 @@ Common CC numbers:
 - CC 74: Filter Cutoff
 - CC 71: Filter Resonance
 
-### Adjusting Distance Range
+#### Adjusting Distance Range
 
 Modify the distance range in [`src/main.cpp`](src/main.cpp:56-63):
 
@@ -113,7 +155,7 @@ if (distance > 2 && distance < 30) {  // Valid range
 }
 ```
 
-### Response Sensitivity
+#### Response Sensitivity
 
 Adjust the change threshold to make the controller more or less sensitive:
 
@@ -121,16 +163,68 @@ Adjust the change threshold to make the controller more or less sensitive:
 const int MIN_CHANGE_THRESHOLD = 1;  // Increase for less sensitivity
 ```
 
+### Notes Version (echomidi-notes.cpp)
+
+#### Changing the Note Range
+
+Edit [`src/mainold.cpp.bak`](src/mainold.cpp.bak:60) and modify the note mapping:
+
+```cpp
+int note = map(distance, 2, 50, 36, 48);  // Maps to C2 to B2 (one octave)
+```
+
+Common note ranges:
+- `36, 48` - C2 to B2 (one octave, low)
+- `48, 60` - C3 to B3 (one octave, middle)
+- `60, 72` - C4 to B4 (one octave, middle C range)
+- `36, 84` - C2 to C5 (three octaves, wide range)
+
+#### Adjusting Note Stability
+
+The notes version uses hysteresis to prevent rapid note changes. Adjust the stability threshold:
+
+```cpp
+const int STABILITY_THRESHOLD = 2;  // Increase for more stable notes
+```
+
+Higher values require more consecutive readings at the same distance before triggering a note, reducing accidental note changes.
+
+#### Changing Note Velocity
+
+Modify the velocity (volume) of notes in [`src/mainold.cpp.bak`](src/mainold.cpp.bak:79):
+
+```cpp
+midi.sendNoteOn(note, 100, 1);  // 100 = velocity (0-127)
+```
+
 ## 📊 Technical Details
+
+### Common Specifications
 
 - **Microcontroller**: ATtiny85 @ 16.5 MHz
 - **USB Protocol**: USB MIDI Class Compliant
 - **MIDI Channel**: 1 (default)
-- **Control Change**: CC 24 (configurable)
+- **Distance Resolution**: ~1 cm
+- **Sensor**: HC-SR04 ultrasonic distance sensor
+
+### Parameter Control Version
+
+- **MIDI Message Type**: Control Change (CC)
+- **Default CC Number**: 24 (configurable)
 - **Update Rate**: ~100 Hz (10ms loop delay)
 - **Distance Range**: 2-30 cm (configurable)
-- **Distance Resolution**: ~1 cm
 - **CC Value Range**: 0-127 (MIDI standard)
+- **Mapping**: Inverted (closer = higher value)
+
+### Notes Version
+
+- **MIDI Message Type**: Note On/Note Off
+- **Default Note Range**: C2 to B2 (MIDI notes 36-48, one octave)
+- **Update Rate**: ~20 Hz (50ms loop delay)
+- **Distance Range**: 2-50 cm (configurable)
+- **Note Velocity**: 100 (configurable, 0-127)
+- **Stability Threshold**: 2 consecutive readings (configurable)
+- **Mapping**: Linear (closer = lower note)
 
 ## 🛠️ Troubleshooting
 
@@ -173,11 +267,22 @@ The DigisparkMIDI library has its own license - see [`lib/DigisparkMIDI/License.
 
 ## 🎵 Inspiration & Use Cases
 
+### Parameter Control Version
+
 - **Live Performance**: Control filter sweeps, reverb, or delay parameters
 - **Sound Design**: Modulate oscillator pitch or wavetable position
 - **Mixing**: Adjust volume or pan with hand gestures
 - **Accessibility**: Hands-free control for musicians with limited mobility
 - **Installation Art**: Create interactive sound installations
+
+### Notes Version
+
+- **Gesture-Based Instrument**: Play melodies by moving your hand in the air
+- **Ambient Music**: Create evolving soundscapes with slow hand movements
+- **Educational Tool**: Teach pitch and distance relationships
+- **Interactive Art**: Combine with visual elements for multimedia installations
+- **Therapeutic Music**: Gentle, accessible instrument for music therapy
+- **Performance Art**: Dramatic hand gestures as part of live performances
 
 ## 🔗 Resources
 
